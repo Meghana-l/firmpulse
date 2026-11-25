@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FirmPulse: live firm-economics model</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%231f3a5f%27/%3E%3Cpath d=%27M6 22l6-8 5 4 9-11%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="description" content="A sample-data and live-data model of how an alternative asset manager makes and spends money: budget, forecast, scenarios and variance.">
+<style>
+  :root{
+    --navy:#1f3a5f; --ink:#1b2430; --muted:#5b6778; --line:#dfe5ee; --bg:#f6f8fb; --card:#fff;
+    --good:#1b7f4b; --bad:#b3372f; --accent:#2f6fdb; --warn:#9a6700;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  header{background:var(--navy);color:#fff;padding:18px 24px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  header h1{margin:0;font-size:20px;letter-spacing:.2px}
+  header p{margin:2px 0 0;font-size:13px;opacity:.85}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.14);font-size:13px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#9aa7b8}
+  .pill.live .dot{background:#3ddc84}
+  .pill.sample .dot{background:#ffb020}
+  main{display:grid;grid-template-columns:300px 1fr;gap:20px;padding:20px 24px;max-width:1280px;margin:0 auto}
+  @media (max-width:900px){main{grid-template-columns:1fr}}
+  aside,.card{background:var(--card);border:1px solid var(--line);border-radius:12px}
+  aside{padding:14px 16px;align-self:start}
+  aside h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 0 6px}
+  aside h2:first-child{margin-top:0}
+  .field{display:grid;grid-template-columns:1fr 96px;gap:8px;align-items:center;margin:6px 0;font-size:13px}
+  .field input{width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font:inherit;text-align:right}
+  .field input:focus{outline:2px solid var(--accent);border-color:transparent}
+  .hint{font-size:12px;color:var(--muted)}
+  nav[role=tablist]{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
+  nav button{border:1px solid var(--line);background:#fff;padding:8px 14px;border-radius:8px;font:inherit;cursor:pointer;color:var(--muted)}
+  nav button[aria-selected=true]{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .panel{display:none}.panel.on{display:block}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+  .kpi{padding:14px 16px}
+  .kpi .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .kpi .v{font-size:24px;font-weight:650;margin:2px 0}
+  .kpi .s{font-size:13px;color:var(--muted)}
+  .good{color:var(--good)}.bad{color:var(--bad)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:1100px){.grid2{grid-template-columns:1fr}}
+  .card{padding:14px 16px;margin-bottom:14px}
+  .card h3{margin:0 0 8px;font-size:15px}
+  svg{width:100%;height:auto;display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;background:#fafbfd}
+  .scroll{overflow-x:auto}
+  button.act{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+  button.act:disabled{opacity:.6;cursor:wait}
+  button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+  .note{background:#fff8e6;border:1px solid #f1dca5;color:#5c4400;border-radius:8px;padding:10px 12px;font-size:13px}
+  .tag{font-size:11px;background:#eef3fb;color:var(--navy);border-radius:5px;padding:2px 6px;margin-left:6px}
+  .comm{white-space:pre-wrap}
+  dl{margin:0}dt{font-weight:650;margin-top:10px}dd{margin:2px 0 0;color:#344054}
+  footer{max-width:1280px;margin:0 auto;padding:0 24px 28px;color:var(--muted);font-size:12px}
+  select{padding:5px 8px;border:1px solid var(--line);border-radius:6px;font:inherit}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:4px;flex-wrap:wrap}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>FirmPulse</h1>
+    <p>How an asset manager makes and spends money, rebuilt around live market data. The firm shown is a sample firm.</p>
+  </div>
+  <div class="pill" id="statusPill"><span class="dot"></span><span id="statusText">Loading market data…</span></div>
+</header>
+
+<main>
+  <aside aria-label="Assumptions">
+    <div id="inputs"></div>
+    <p class="hint">Defaults describe a sample firm. Change anything and every chart, table and the Excel download update.</p>
+  </aside>
+
+  <section>
+    <nav role="tablist" id="tabs">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="scenarios" aria-selected="false">Scenarios</button>
+      <button role="tab" data-tab="monthly" aria-selected="false">Monthly</button>
+      <button role="tab" data-tab="market" aria-selected="false">Live market</button>
+      <button role="tab" data-tab="f13" aria-selected="false">Public 13F</button>
+      <button role="tab" data-tab="how" aria-selected="false">How it works</button>
+    </nav>
+
+    <div class="panel on" id="p-overview">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid2">
+        <div class="card"><h3>Assets under management <span class="hint">($m)</span></h3>
+          <div class="row"><label for="viewScn" class="hint">Forecast case</label>
+            <select id="viewScn"><option value="base">Base</option><option value="upside">Upside</option><option value="downside">Downside</option></select></div>
+          <div id="aumChart"></div>
+          <div class="legend"><span><i class="sw" style="background:#9aa7b8"></i>Budget</span><span><i class="sw" style="background:#2f6fdb"></i>Forecast</span></div>
+        </div>
+        <div class="card"><h3>Why did operating income move? <span class="hint">($m, Budget → Forecast)</span></h3>
+          <div id="bridgeChart"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <h3 style="margin:0">Variance commentary <span class="tag" id="commTag"></span></h3>
+          <div class="row">
+            <button class="act" id="btnComm">Write commentary</button>
+            <button class="ghost" id="btnXlsx">Download Excel model</button>
+          </div>
+        </div>
+        <p class="comm" id="commText" style="margin-bottom:0">…</p>
+      </div>
+    </div>
+
+    <div class="panel" id="p-scenarios">
+      <div class="card"><h3>Operating income by scenario <span class="hint">($m)</span></h3><div id="scnChart"></div></div>
+      <div class="card"><h3>Scenario table</h3><div class="scroll" id="scnTable"></div>
+        <p class="hint">Upside: the rest of the year returns 6 points more, and money comes in 1.5× faster. Downside: an 8% fund drop next month, returns 2 points lower, and money leaves at half the current inflow rate. High-water mark: after a drop, incentive fees stop until the fund climbs back above its old peak.</p></div>
+    </div>
+
+    <div class="panel" id="p-monthly">
+      <div class="card"><h3>Month by month <span class="hint">(selected forecast case)</span></h3><div class="scroll" id="monthTable"></div></div>
+    </div>
+
+    <div class="panel" id="p-market">
+      <div class="card"><h3>Live market inputs</h3><div id="marketBox"></div>
+        <div class="row" style="margin-top:10px"><button class="ghost" id="btnRefresh">Refresh now</button><span class="hint" id="autoNote">Auto-refreshes every 5 minutes.</span></div></div>
+      <div class="card"><h3>How the market feeds the model</h3>
+        <p style="margin-top:0">For months that are over, the fund return is <b>skill + beta × stock-market return + the rest in cash</b>. The stock-market return is the real S&amp;P 500 month-end to month-end move. The cash rate is the real 3-month T-bill. For months still to come, the model uses the plan return unless a scenario changes it.</p>
+        <div class="scroll" id="retTable"></div></div>
+    </div>
+
+    <div class="panel" id="p-f13">
+      <div class="card"><h3>D. E. Shaw's latest public 13F filings <span class="tag">SEC EDGAR</span></h3>
+        <div class="note">A 13F lists only the US-listed stocks and options a large manager held at quarter-end, filed up to 45 days later. It leaves out non-US securities, bonds, most derivatives and shorts, so it is a partial, delayed lens on the firm. This page is not affiliated with D. E. Shaw.</div>
+        <div id="f13Box" style="margin-top:12px"><p class="hint">Loading the latest filing from the SEC…</p></div></div>
+    </div>
+
+    <div class="panel" id="p-how">
+      <div class="card"><h3>The five ideas, in plain words</h3>
+        <dl>
+          <dt>Budget</dt><dd>The plan made before the year: how much money we will manage, how much we will earn, how much we will spend.</dd>
+          <dt>Forecast</dt><dd>Our best guess for the full year after real months have happened. Real months go in, the rest of the year is re-estimated.</dd>
+          <dt>Scenario</dt><dd>A "what if?" run: what if markets rise, what if they fall and investors take money out.</dd>
+          <dt>Variance</dt><dd>The gap between plan and reality, plus the reason. This tool splits the gap into market returns, money in and out, and hiring and cost rates.</dd>
+          <dt>High-water mark</dt><dd>The fund's highest price so far. Performance fees are only charged on gains above it, so a fund that falls must first win back its losses before it earns performance fees again.</dd>
+          <dt>Beta and alpha</dt><dd>Beta is how much of the stock market's move the fund shares. Alpha is the extra the manager adds on top. Both are assumptions here.</dd>
+        </dl></div>
+      <div class="card"><h3>Where the numbers come from</h3>
+        <ul style="margin:0;padding-left:18px">
+          <li><b>FRED (St. Louis Fed):</b> S&amp;P 500 daily close, VIX, 3-month T-bill, 10-year Treasury. End-of-day data with a short delay.</li>
+          <li><b>Finnhub (optional):</b> latest SPY quote, if a key is set.</li>
+          <li><b>SEC EDGAR:</b> public 13F filings for the 13F tab.</li>
+          <li><b>Everything about the firm itself</b> (fees, headcount, costs, flows) is sample data.</li>
+        </ul>
+        <p class="hint" style="margin-bottom:0">Not affiliated with D. E. Shaw. Not investment advice. If the status badge says SAMPLE, the stock-market numbers are demo numbers, not real data.</p></div>
+    </div>
+  </section>
+</main>
+<footer>FirmPulse is a learning project. Python model, Excel workbook with live formulas, and this web app share one set of assumptions.</footer>
+
+<script>
+"use strict";
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fm = (x, d=1) => (x < 0 ? "-" : "") + "$" + Math.abs(x).toLocaleString("en-US", {minimumFractionDigits:d, maximumFractionDigits:d}) + "m";
+const fp = (x, d=1) => (x*100).toFixed(d) + "%";
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// ---------------------------------------------------------------- inputs
+const FIELDS = [
+  ["Fund", [["start_aum","Starting assets ($m)","num",100],["mgmt_fee","Management fee (% / yr)","pct",0.05],["incentive_fee","Incentive fee (% of profit)","pct",1],
+            ["budget_return","Planned return (% / yr)","pct",0.5],["beta","Beta (market sensitivity)","num",0.05],["alpha_monthly","Alpha (% / month)","pct",0.01]]],
+  ["Money in and out ($m / month)", [["budget_flow","Planned net inflow","num",5],["actual_flow","Actual net inflow","num",5]]],
+  ["People and costs", [["start_headcount","Starting headcount","num",5],["budget_hires","Planned hires / month","num",0.1],["actual_hires","Actual hires / month","num",0.1],
+            ["budget_comp","Planned pay / head ($m)","num",0.005],["actual_comp","Actual pay / head ($m)","num",0.005],
+            ["budget_tech","Planned tech / head ($m)","num",0.001],["actual_tech","Actual tech / head ($m)","num",0.001],
+            ["occupancy","Offices ($m / yr)","num",0.5],["bonus_pct","Bonus pool (% of revenue)","pct",1],["other_pct","Other costs (% of revenue)","pct",0.5]]],
+];
+const DEFAULTS = {start_aum:5000,mgmt_fee:.015,incentive_fee:.20,budget_return:.08,beta:.30,alpha_monthly:.001,budget_flow:50,actual_flow:30,
+  start_headcount:250,budget_hires:1,actual_hires:.6,budget_comp:.18,actual_comp:.185,budget_tech:.04,actual_tech:.044,occupancy:8,bonus_pct:.30,other_pct:.05};
+let A = {...DEFAULTS};
+
+function buildInputs(){
+  const root = $("#inputs"); root.innerHTML = "";
+  FIELDS.forEach(([group, items]) => {
+    const h = document.createElement("h2"); h.textContent = group; root.appendChild(h);
+    items.forEach(([key,label,kind,step]) => {
+      const wrap = document.createElement("label"); wrap.className = "field";
+      const sp = document.createElement("span"); sp.textContent = label;
+      const inp = document.createElement("input"); inp.type = "number"; inp.step = kind === "pct" ? step : step; inp.id = "in_"+key;
+      inp.value = kind === "pct" ? +(A[key]*100).toFixed(4) : A[key];
+      inp.addEventListener("input", () => { const v = parseFloat(inp.value); if (!Number.isNaN(v)) { A[key] = kind === "pct" ? v/100 : v; schedule(); } });
+      wrap.append(sp, inp); root.appendChild(wrap);
+    });
+  });
+  const reset = document.createElement("button"); reset.className = "ghost"; reset.textContent = "Reset to defaults"; reset.style.marginTop = "10px";
+  reset.onclick = () => { A = {...DEFAULTS}; buildInputs(); schedule(); };
+  root.appendChild(reset);
+}
+
+// ---------------------------------------------------------------- data
+let MARKET = null, OUT = null, timer = null;
+
+async function loadMarket(){
+  try {
+    const r = await fetch("/api/market"); MARKET = await r.json();
+  } catch(e){
+    MARKET = {source:"sample", note:"Could not reach the API. Showing sample data.", fy:new Date().getFullYear(), completed_months:0, monthly_market_returns:[], cash_rate:.04};
+  }
+  const pill = $("#statusPill"); pill.className = "pill " + (MARKET.source === "live" ? "live" : "sample");
+  $("#statusText").textContent = MARKET.source === "live"
+    ? `LIVE · FRED data through ${MARKET.data_through || MARKET.as_of}`
+    : "SAMPLE data · add FRED_API_KEY for live";
+  renderMarket();
+}
+
+function payload(){
+  return {assumptions: {...A, fy: MARKET?.fy}, market: {monthly_market_returns: MARKET?.monthly_market_returns || [], cash_rate: MARKET?.cash_rate ?? .04, source: MARKET?.source}};
+}
+
+async function compute(){
+  if (!MARKET) return;
+  try {
+    const r = await fetch("/api/model", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload())});
+    OUT = await r.json();
+    if (OUT.error) throw new Error(OUT.error);
+  } catch(e){ $("#kpis").innerHTML = `<div class="note">Could not run the model: ${esc(e.message)}</div>`; return; }
+  render();
+}
+function schedule(){ clearTimeout(timer); timer = setTimeout(compute, 150); }
+
+// ---------------------------------------------------------------- charts (hand-rolled SVG)
+function svgEl(w,h){ return `<svg viewBox="0 0 ${w} ${h}" role="img">`; }
+function niceTicks(lo, hi, n=4){
+  const span = (hi - lo) || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1,2,2.5,5,10].map(m => m*mag).find(s => s >= step0) || step0;
+  const start = Math.floor(lo/step + 1e-9)*step, ticks = [];
+  for (let v = start; ; v += step) { ticks.push(+v.toFixed(10)); if (v >= hi - 1e-9) break; }   // top tick always covers the data
+  return ticks;
+}
+function lineChart(el, labels, series){
+  const W=620,H=260,L=56,R=12,T=10,B=26;
+  const all = series.flatMap(s => s.values);
+  const ticks = niceTicks(Math.min(...all), Math.max(...all));
+  const lo = ticks[0], hi = ticks[ticks.length-1];
+  const x = i => L + (W-L-R) * i / (labels.length-1), y = v => T + (H-T-B) * (1 - (v-lo)/((hi-lo)||1));
+  let s = svgEl(W,H);
+  ticks.forEach(t => { s += `<line x1="${L}" x2="${W-R}" y1="${y(t)}" y2="${y(t)}" stroke="#e6ebf2"/><text x="${L-6}" y="${y(t)+4}" font-size="14" fill="#5b6778" text-anchor="end">${Math.round(t).toLocaleString()}</text>`; });
+  labels.forEach((l,i) => { s += `<text x="${x(i)}" y="${H-8}" font-size="14" fill="#5b6778" text-anchor="middle">${esc(l)}</text>`; });
+  series.forEach(se => {
+    const d = se.values.map((v,i) => `${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="2.4" ${se.dash?'stroke-dasharray="5 4"':""}/>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+function waterfall(el, steps){
+  const W=620,H=260,L=56,R=12,T=14,B=44;
+  let run = 0; const bars = steps.map(st => {
+    if (st.total) { const b = {label:st.label, lo:Math.min(0,st.value), hi:Math.max(0,st.value), val:st.value, total:true}; run = st.value; return b; }
+    const start = run, end = run + st.value; run = end;
+    return {label:st.label, lo:Math.min(start,end), hi:Math.max(start,end), val:st.value, total:false};
+  });
+  const ticks = niceTicks(Math.min(0,...bars.map(b=>b.lo)), Math.max(...bars.map(b=>b.hi)));
+  const lo = ticks[0], hi = ticks[ticks.length-1];
+  const y = v => T + (H-T-B) * (1 - (v-lo)/((hi-lo)||1));
+  const bw = (W-L-R)/bars.length, pad = bw*0.2;
+  let s = svgEl(W,H);
+  ticks.forEach(t => { s += `<line x1="${L}" x2="${W-R}" y1="${y(t)}" y2="${y(t)}" stroke="#e6ebf2"/><text x="${L-6}" y="${y(t)+4}" font-size="14" fill="#5b6778" text-anchor="end">${Math.round(t)}</text>`; });
+  bars.forEach((b,i) => {
+    const color = b.total ? "#1f3a5f" : (b.val >= 0 ? "#1b7f4b" : "#b3372f");
+    const x0 = L + i*bw + pad, h = Math.max(2, y(b.lo) - y(b.hi));
+    s += `<rect x="${x0}" y="${y(b.hi)}" width="${bw-2*pad}" height="${h}" rx="3" fill="${color}"/>`;
+    s += `<text x="${x0+(bw-2*pad)/2}" y="${y(b.hi)-5}" font-size="14" font-weight="600" fill="${color}" text-anchor="middle">${b.total?"":(b.val>=0?"+":"")}${b.val.toFixed(1)}</text>`;
+    const words = b.label.split(" ");
+    words.forEach((w,k) => { s += `<text x="${x0+(bw-2*pad)/2}" y="${H-B+16+k*13}" font-size="14" fill="#5b6778" text-anchor="middle">${esc(w)}</text>`; });
+  });
+  el.innerHTML = s + "</svg>";
+}
+function barChart(el, items){
+  const W=620,H=240,L=56,R=12,T=14,B=30;
+  const ticks = niceTicks(Math.min(0,...items.map(i=>i.value)), Math.max(...items.map(i=>i.value)));
+  const lo = ticks[0], hi = ticks[ticks.length-1];
+  const y = v => T + (H-T-B) * (1 - (v-lo)/((hi-lo)||1));
+  const bw = (W-L-R)/items.length, pad = bw*0.25;
+  let s = svgEl(W,H);
+  ticks.forEach(t => { s += `<line x1="${L}" x2="${W-R}" y1="${y(t)}" y2="${y(t)}" stroke="#e6ebf2"/><text x="${L-6}" y="${y(t)+4}" font-size="14" fill="#5b6778" text-anchor="end">${Math.round(t)}</text>`; });
+  items.forEach((it,i) => {
+    const x0 = L + i*bw + pad, top = y(Math.max(0,it.value)), h = Math.max(2, Math.abs(y(it.value)-y(0)));
+    s += `<rect x="${x0}" y="${it.value>=0?top:y(0)}" width="${bw-2*pad}" height="${h}" rx="3" fill="${it.color}"/>`;
+    s += `<text x="${x0+(bw-2*pad)/2}" y="${(it.value>=0?top:y(it.value))-5}" font-size="14" font-weight="600" fill="#1b2430" text-anchor="middle">${it.value.toFixed(1)}</text>`;
+    s += `<text x="${x0+(bw-2*pad)/2}" y="${H-10}" font-size="14" fill="#5b6778" text-anchor="middle">${esc(it.label)}</text>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+
+// ---------------------------------------------------------------- render
+function kpi(label, budget, fc, kind){
+  const d = fc - budget, good = kind === "cost" ? d <= 0 : d >= 0;
+  const money = kind === "pct" ? fp(fc) : fm(fc);
+  const dtxt = kind === "pct" ? (d>=0?"+":"") + (d*100).toFixed(1) + " pts" : (d>=0?"+":"-") + fm(Math.abs(d)).replace("-","");
+  return `<div class="card kpi"><div class="l">${esc(label)}</div><div class="v">${money}</div>
+    <div class="s">Budget ${kind==="pct"?fp(budget):fm(budget)} · <span class="${good?"good":"bad"}">${dtxt}</span></div></div>`;
+}
+function render(){
+  const b = OUT.budget.totals, f = OUT.forecast.totals;
+  $("#kpis").innerHTML = kpi("Revenue", b.revenue, f.revenue) + kpi("Operating income", b.op_income, f.op_income) +
+    kpi("Operating margin", b.margin, f.margin, "pct") + kpi("Ending assets", b.end_aum, f.end_aum);
+  renderAum();
+  const br = OUT.bridge;
+  waterfall($("#bridgeChart"), [{label:"Budget",value:br.budget,total:true},{label:"Market returns",value:br.returns},{label:"Net flows",value:br.flows},{label:"Hiring and costs",value:br.costs},{label:"Forecast",value:br.forecast,total:true}]);
+  const s = OUT.scenarios;
+  barChart($("#scnChart"), [{label:"Budget",value:b.op_income,color:"#9aa7b8"},{label:"Base",value:s.base.op_income,color:"#2f6fdb"},{label:"Upside",value:s.upside.op_income,color:"#1b7f4b"},{label:"Downside",value:s.downside.op_income,color:"#b3372f"}]);
+  const rows = [["Ending assets","end_aum"],["Total revenue","revenue"],["Incentive fees","incentive_fee"],["Total costs","opex"],["Operating income","op_income"]];
+  let t = "<table><tr><th>$m</th><th>Budget</th><th>Base</th><th>Upside</th><th>Downside</th></tr>";
+  rows.forEach(([l,k]) => { t += `<tr><td>${l}</td><td>${b[k].toFixed(1)}</td><td>${s.base[k].toFixed(1)}</td><td>${s.upside[k].toFixed(1)}</td><td>${s.downside[k].toFixed(1)}</td></tr>`; });
+  t += `<tr><td>Operating margin</td><td>${fp(b.margin)}</td><td>${fp(s.base.margin)}</td><td>${fp(s.upside.margin)}</td><td>${fp(s.downside.margin)}</td></tr></table>`;
+  $("#scnTable").innerHTML = t;
+  renderMonthly();
+}
+function renderAum(){
+  const key = $("#viewScn").value, rows = OUT.scenario_rows[key], bud = OUT.budget.rows;
+  const start = OUT.assumptions.start_aum;
+  lineChart($("#aumChart"), ["Start", ...MONTHS], [
+    {values:[start, ...bud.map(r=>r.end_aum)], color:"#9aa7b8", dash:true},
+    {values:[start, ...rows.map(r=>r.end_aum)], color:"#2f6fdb"}]);
+}
+function renderMonthly(){
+  const key = $("#viewScn").value, rows = OUT.scenario_rows[key], n = OUT.completed_months;
+  let t = `<table><tr><th>Month</th><th>Phase</th><th>Fund return</th><th>Assets start</th><th>Mgmt fee</th><th>Incentive fee</th><th>Revenue</th><th>Costs</th><th>Operating income</th><th>Assets end</th></tr>`;
+  rows.forEach((r,i) => { t += `<tr><td>${r.month}</td><td>${i<n?"Actual":"Forecast"}</td><td>${fp(r.fund_return,2)}</td><td>${r.begin_aum.toFixed(0)}</td><td>${r.mgmt_fee.toFixed(1)}</td><td>${r.incentive_fee.toFixed(1)}</td><td>${r.revenue.toFixed(1)}</td><td>${r.opex.toFixed(1)}</td><td>${r.op_income.toFixed(1)}</td><td>${r.end_aum.toFixed(0)}</td></tr>`; });
+  $("#monthTable").innerHTML = t + "</table>";
+}
+function renderMarket(){
+  if (!MARKET) return;
+  const m = MARKET, q = m.quote;
+  const cell = (l,v) => `<div class="card kpi" style="margin:0"><div class="l">${esc(l)}</div><div class="v" style="font-size:20px">${v}</div></div>`;
+  let h = `<div class="note" style="margin-bottom:12px">${esc(m.note)}</div><div class="kpis">`;
+  h += cell("S&P 500 (last close)", m.sp500_last ? m.sp500_last.toLocaleString("en-US",{maximumFractionDigits:0}) : "n/a");
+  h += cell("Month to date", m.mtd_return == null ? "n/a" : fp(m.mtd_return,2));
+  h += cell("VIX", m.vix == null ? "n/a" : m.vix.toFixed(1));
+  h += cell("3-month T-bill", fp(m.cash_rate,2));
+  h += cell("10-year Treasury", m.us10y == null ? "n/a" : fp(m.us10y,2));
+  h += cell("SPY quote", q ? `$${q.price.toFixed(2)} (${q.change_pct>=0?"+":""}${(q.change_pct??0).toFixed(2)}%)` : "<span style=\"font-size:13px;font-weight:500\">add FINNHUB_API_KEY (optional)</span>");
+  $("#marketBox").innerHTML = h + "</div>";
+  const r = m.monthly_market_returns || [];
+  $("#retTable").innerHTML = r.length
+    ? "<table><tr><th>Month</th>" + r.map((_,i)=>`<th>${MONTHS[i]}</th>`).join("") + "</tr><tr><td>Stock market return</td>" + r.map(v=>`<td class="${v>=0?"good":"bad"}">${fp(v,2)}</td>`).join("") + "</tr></table>"
+    : '<p class="hint">No finished months yet this year, so the whole year is forecast from the plan.</p>';
+}
+
+// ---------------------------------------------------------------- commentary, export, 13F
+async function writeComment(){
+  const btn = $("#btnComm"); btn.disabled = true; btn.textContent = "Writing…";
+  try {
+    const r = await fetch("/api/commentary", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload())});
+    const j = await r.json();
+    $("#commText").textContent = j.text || j.error || "No commentary.";
+    $("#commTag").textContent = j.source === "claude" ? "written by Claude" : "template";
+  } catch(e){ $("#commText").textContent = "Could not write commentary."; }
+  btn.disabled = false; btn.textContent = "Write commentary";
+}
+async function downloadXlsx(){
+  const btn = $("#btnXlsx"); btn.disabled = true;
+  try {
+    const r = await fetch("/api/export", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload())});
+    if (!r.ok) throw new Error("export failed");
+    const blob = await r.blob(), a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `FirmPulse_FY${MARKET?.fy||""}.xlsx`; a.click(); URL.revokeObjectURL(a.href);
+  } catch(e){ window.location = "/FirmPulse_Model.xlsx"; }   // fall back to the pre-built workbook
+  btn.disabled = false;
+}
+const big = x => x >= 1e9 ? "$" + (x/1e9).toFixed(1) + "B" : "$" + (x/1e6).toFixed(0) + "M";
+async function loadF13(){
+  const box = $("#f13Box"); box.innerHTML = '<p class="hint">Reading SEC filings…</p>';
+  let j; try { j = await (await fetch("/api/holdings")).json(); } catch(e){ j = {ok:false, error:"Could not reach the API."}; }
+  if (!j.ok){ box.innerHTML = `<p class="bad">${esc(j.error || "Unavailable.")}</p><button class="act" id="btnF13b">Try again</button>`; $("#btnF13b").onclick = loadF13; return; }
+  const L = j.latest, P = j.prior;
+  let h = `<div class="kpis">
+    <div class="card kpi" style="margin:0"><div class="l">Quarter reported</div><div class="v" style="font-size:20px">${esc(L.report_date)}</div><div class="s">filed ${esc(L.filing_date)}</div></div>
+    <div class="card kpi" style="margin:0"><div class="l">US equity value reported</div><div class="v" style="font-size:20px">${big(L.total_equity_value)}</div><div class="s">${P ? `prior quarter ${big(P.total_equity_value)}` : ""}</div></div>
+    <div class="card kpi" style="margin:0"><div class="l">Stock positions</div><div class="v" style="font-size:20px">${L.n_equity_positions.toLocaleString()}</div><div class="s">${P ? `prior ${P.n_equity_positions.toLocaleString()}` : ""}</div></div>
+    <div class="card kpi" style="margin:0"><div class="l">Top 10 share</div><div class="v" style="font-size:20px">${fp(L.top10_share)}</div><div class="s">${L.option_lines.toLocaleString()} option lines listed separately</div></div></div>`;
+  h += `<h3 style="margin:14px 0 6px">Largest reported stock positions</h3><div class="scroll"><table><tr><th>Company</th><th>Value</th><th>Share of total</th></tr>` +
+    L.top.map(r => `<tr><td>${esc(r.issuer)}</td><td>${big(r.value)}</td><td>${fp(r.weight,2)}</td></tr>`).join("") + "</table></div>";
+  if (j.movers){
+    const mv = (arr) => arr.map(r => `<tr><td>${esc(r.issuer)}</td><td class="${r.change>=0?"good":"bad"}">${r.change>=0?"+":"-"}${big(Math.abs(r.change))}</td></tr>`).join("");
+    h += `<div class="grid2" style="margin-top:14px"><div><h3 style="margin:0 0 6px">Biggest increases vs prior quarter</h3><div class="scroll"><table><tr><th>Company</th><th>Change in value</th></tr>${mv(j.movers.largest_increases)}</table></div></div>
+      <div><h3 style="margin:0 0 6px">Biggest decreases</h3><div class="scroll"><table><tr><th>Company</th><th>Change in value</th></tr>${mv(j.movers.largest_decreases)}</table></div></div></div>
+      <p class="hint">Change in reported value mixes price moves with buying and selling, so it is a clue, not proof of a trade.</p>`;
+  }
+  box.innerHTML = h;
+}
+
+// ---------------------------------------------------------------- wiring
+document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("#tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("on", p.id === "p-" + b.dataset.tab));
+  if (b.dataset.tab === "f13" && !window.__f13Loaded){ window.__f13Loaded = true; loadF13(); }   // opens by itself
+}));
+$("#viewScn").addEventListener("change", () => { if (OUT){ renderAum(); renderMonthly(); } });
+$("#btnComm").onclick = writeComment; $("#btnXlsx").onclick = downloadXlsx;
+$("#btnRefresh").onclick = async () => { await loadMarket(); await compute(); };
+
+(async function init(){
+  buildInputs(); await loadMarket(); await compute(); writeComment();
+  setInterval(async () => { await loadMarket(); await compute(); }, 5*60*1000);
+})();
+</script>
+</body>
+</html>
